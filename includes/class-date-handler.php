@@ -86,12 +86,16 @@ class Date_Handler {
         $timezone = self::get_timezone();
         $value    = trim( $value );
 
+        // The leading '!' resets every field the format does not set. Without
+        // it createFromFormat() fills the gaps from the *current* time, so a
+        // 'Y-m-d' value parses as that date at whatever o'clock it happens to
+        // be — which then gets stamped onto the post as its publish date.
         $formats = [
-            'Y-m-d\TH:i:s', // datetime-local with seconds
-            'Y-m-d\TH:i',   // datetime-local (HTML input native format)
-            'Y-m-d H:i:s',  // MySQL datetime
-            'Y-m-d H:i',    // MySQL without seconds
-            'Y-m-d',        // date input (HTML input native format)
+            '!Y-m-d\TH:i:s', // datetime-local with seconds
+            '!Y-m-d\TH:i',   // datetime-local (HTML input native format)
+            '!Y-m-d H:i:s',  // MySQL datetime
+            '!Y-m-d H:i',    // MySQL without seconds
+            '!Y-m-d',        // date input (HTML input native format)
         ];
 
         foreach ( $formats as $format ) {

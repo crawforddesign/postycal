@@ -1,6 +1,6 @@
 # PostyCal
 
-**Version:** 2.4.0  
+**Version:** 2.4.1  
 **Requires WordPress:** 6.0+  
 **Requires PHP:** 8.2+  
 **License:** GPL v3 or later
@@ -67,7 +67,18 @@ Saving a schedule adds a **Publication Schedule** meta box to that post type's e
 
 Dates are interpreted in the site's configured timezone (**Settings → General**), not the server's.
 
-**Day boundaries.** With Time-Aware off, a go-live date is *inclusive* — a post dated today goes live today. An expiration date is *exclusive* — a post stays live for the whole of its expiration day and retires at the end of it.
+**Day boundaries.** With Time-Aware off, a go-live date is *inclusive* — a post dated today goes live today. An expiration date is *exclusive* — a post stays live for the whole of its expiration day and retires at the end of it. Setting both dates to the same day therefore gives the post a one-day run, which is the way to schedule a single-day event.
+
+**Missing dates.** Both fields are optional, and each combination behaves differently:
+
+| Dates set | Behaviour |
+|-----------|-----------|
+| Both | The full lifecycle above |
+| Go-live only | Publishes on the go-live date and stays live indefinitely |
+| Expiration only | Never published by PostyCal, but still retired on the expiration date if an editor publishes it by hand |
+| Neither | PostyCal leaves the post alone — no term, no status change |
+
+The editor notice on the post screen says which of these applies whenever a date is blank.
 
 **On save**, only the term is updated, never the post status. That keeps an editor in control of publishing during an editing session; status changes are left to the scheduled run.
 
@@ -163,6 +174,14 @@ bin/build-release.sh
 ```
 
 ## Changelog
+
+### 2.4.1
+- Scheduled runs no longer issue a database query per post to read its current term; on a 25,000-post archive a run dropped from roughly 20,100 queries to 620
+- Transition passes fetch post IDs and walk them in batches, so memory stays flat instead of loading every matching post at once — the same archive went from about 160 MB to 22 MB, well clear of the memory limit that was killing runs on large sites
+- Date-only values now parse at midnight instead of inheriting the current time, so a post going live is stamped with its go-live date at 00:00 rather than whatever time the run happened to fire
+- Editor notices describe what PostyCal will actually do when only one date is filled in, replacing the previous claim that a post would not publish until both were set
+- A go-live and expiration date on the same day no longer warns, since that is a valid one-day run
+- With two schedules on one post type, a problem in the first no longer hides a problem in the second, and each notice names the schedule it refers to
 
 ### 2.4.0
 - Added in-dashboard updates: new GitHub Releases are now offered as plugin updates under Dashboard → Updates, rather than needing a manual zip upload

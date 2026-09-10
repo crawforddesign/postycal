@@ -49,6 +49,13 @@ class Cron_Handler {
     private bool $is_updating = false;
 
     /**
+     * How many posts to hydrate at a time when walking a result set.
+     *
+     * @var int
+     */
+    private const CHUNK_SIZE = 200;
+
+    /**
      * Constructor.
      *
      * @param Schedule_Manager $schedule_manager The schedule manager.
@@ -129,7 +136,7 @@ class Cron_Handler {
         // manually before its go-live date leaves it published but still in
         // the upcoming term, and it would otherwise never be picked up by
         // either pass again. Posts already in their correct state are no-ops.
-        $posts = $this->get_posts_by_terms(
+        $post_ids = $this->get_posts_by_terms(
             $schedule,
             [ $schedule->upcoming_term, $schedule->active_term ],
             [ 'draft', 'pending', 'publish' ]
@@ -137,12 +144,12 @@ class Cron_Handler {
 
         $count = 0;
 
-        foreach ( $posts as $post ) {
-            if ( ! Override::is_automatic( $this->get_override( $post->ID, $schedule ) ) ) {
+        foreach ( $this->in_chunks( $post_ids ) as $post_id ) {
+            if ( ! Override::is_automatic( $this->get_override( $post_id, $schedule ) ) ) {
                 continue;
             }
 
-            $go_live = Date_Handler::get_go_live_date( $post->ID, $schedule );
+            $go_live = Date_Handler::get_go_live_date( $post_id, $schedule );
 
             if ( null === $go_live ) {
                 continue;
@@ -153,13 +160,13 @@ class Cron_Handler {
                 continue;
             }
 
-            $expiration = Date_Handler::get_expiration_date( $post->ID, $schedule );
+            $expiration = Date_Handler::get_expiration_date( $post_id, $schedule );
 
             if ( null !== $expiration && Date_Handler::is_date_past( $expiration, null, $schedule->use_time ) ) {
                 // Both dates passed — expire directly without going through active.
-                $changed = $this->apply_expiry( $post->ID, $schedule );
+                $changed = $this->apply_expiry( $post_id, $schedule );
             } else {
-                $changed = $this->apply_go_live( $post->ID, $schedule, $go_live );
+                $changed = $this->apply_go_live( $post_id, $schedule, $go_live );
             }
 
             if ( $changed ) {
@@ -177,7 +184,7 @@ class Cron_Handler {
      * @return int Number of posts transitioned.
      */
     private function process_expiry_transitions( Schedule $schedule ): int {
-        $posts = $this->get_posts_by_terms(
+        $post_ids = $this->get_posts_by_terms(
             $schedule,
             [ $schedule->active_term ],
             [ 'publish' ]
@@ -185,12 +192,12 @@ class Cron_Handler {
 
         $count = 0;
 
-        foreach ( $posts as $post ) {
-            if ( ! Override::is_automatic( $this->get_override( $post->ID, $schedule ) ) ) {
+        foreach ( $this->in_chunks( $post_ids ) as $post_id ) {
+            if ( ! Override::is_automatic( $this->get_override( $post_id, $schedule ) ) ) {
                 continue;
             }
 
-            $expiration = Date_Handler::get_expiration_date( $post->ID, $schedule );
+            $expiration = Date_Handler::get_expiration_date( $post_id, $schedule );
 
             if ( null === $expiration ) {
                 continue;
@@ -200,7 +207,7 @@ class Cron_Handler {
                 continue;
             }
 
-            if ( $this->apply_expiry( $post->ID, $schedule ) ) {
+            if ( $this->apply_expiry( $post_id, $schedule ) ) {
                 ++$count;
             }
         }
@@ -229,11 +236,14 @@ class Cron_Handler {
 
         $query = new \WP_Query(
             [
-                'post_type'      => $schedule->post_type,
-                'post_status'    => 'any',
-                'posts_per_page' => -1,
-                'no_found_rows'  => true,
-                'meta_query'     => [
+                'post_type'              => $schedule->post_type,
+                'post_status'            => 'any',
+                'posts_per_page'         => -1,
+                'no_found_rows'          => true,
+                'fields'                 => 'ids',
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+                'meta_query'             => [
                     [
                         'key'     => $schedule->get_override_meta_key(),
                         'value'   => Override::pinned_values(),
@@ -245,8 +255,8 @@ class Cron_Handler {
 
         $count = 0;
 
-        foreach ( $query->posts as $post ) {
-            $override = $this->get_override( $post->ID, $schedule );
+        foreach ( $this->in_chunks( array_map( 'intval', $query->posts ) ) as $post_id ) {
+            $override = $this->get_override( $post_id, $schedule );
             $term     = Override::term_for( $override, $schedule );
             $status   = Override::status_for( $override );
 
@@ -254,8 +264,8 @@ class Cron_Handler {
                 continue;
             }
 
-            $term_changed   = $this->set_post_term( $post->ID, $schedule, $term );
-            $status_changed = $this->update_post_status( $post->ID, $status );
+            $term_changed   = $this->set_post_term( $post_id, $schedule, $term );
+            $status_changed = $this->update_post_status( $post_id, $status );
 
             if ( ! $term_changed && ! $status_changed ) {
                 continue;
@@ -263,7 +273,7 @@ class Cron_Handler {
 
             Logger::info(
                 'Applied schedule override',
-                [ 'post_id' => $post->ID, 'schedule' => $schedule->name, 'override' => $override ]
+                [ 'post_id' => $post_id, 'schedule' => $schedule->name, 'override' => $override ]
             );
 
             ++$count;
@@ -479,18 +489,27 @@ class Cron_Handler {
     /**
      * Query posts matching specific taxonomy terms and post statuses.
      *
+     * Only IDs are fetched. The passes below need nothing from the post row
+     * itself, and hydrating every match into a WP_Post costs hundreds of
+     * megabytes on a large archive — enough to exhaust the memory limit and
+     * kill the cron run outright. Caches are primed per chunk instead, by
+     * in_chunks().
+     *
      * @param Schedule $schedule The schedule.
      * @param string[] $terms    Term slugs to match (IN operator).
      * @param string[] $statuses Post statuses to match.
-     * @return \WP_Post[]
+     * @return int[] Post IDs.
      */
     private function get_posts_by_terms( Schedule $schedule, array $terms, array $statuses ): array {
         $args = [
-            'post_type'      => $schedule->post_type,
-            'post_status'    => $statuses,
-            'posts_per_page' => -1,
-            'no_found_rows'  => true,
-            'tax_query'      => [
+            'post_type'              => $schedule->post_type,
+            'post_status'            => $statuses,
+            'posts_per_page'         => -1,
+            'no_found_rows'          => true,
+            'fields'                 => 'ids',
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'tax_query'              => [
                 [
                     'taxonomy' => $schedule->taxonomy,
                     'field'    => 'slug',
@@ -498,10 +517,46 @@ class Cron_Handler {
                     'operator' => 'IN',
                 ],
             ],
-            'fields'         => 'all',
         ];
 
-        return ( new \WP_Query( $args ) )->posts;
+        return array_map( 'intval', ( new \WP_Query( $args ) )->posts );
+    }
+
+    /**
+     * Walk post IDs, priming the post, meta and term caches a chunk at a time.
+     *
+     * Each pass reads several meta values and the current terms for every
+     * post it looks at. Priming in batches keeps that to a couple of queries
+     * per chunk instead of one per post, without holding the whole archive
+     * in memory at once.
+     *
+     * @param int[] $post_ids Post IDs to iterate.
+     * @return \Generator<int>
+     */
+    private function in_chunks( array $post_ids ): \Generator {
+        $taxonomies = get_object_taxonomies( get_post_type( reset( $post_ids ) ?: 0 ) ?: '' );
+
+        foreach ( array_chunk( $post_ids, self::CHUNK_SIZE ) as $chunk ) {
+            _prime_post_caches( $chunk, true, true );
+
+            foreach ( $chunk as $post_id ) {
+                yield $post_id;
+            }
+
+            // Release what this chunk primed, or the object cache simply
+            // accumulates the whole archive and the memory saved by fetching
+            // IDs is given straight back. Targeted deletes rather than
+            // clean_post_cache(), which would fire invalidation hooks —
+            // and any listening plugin's handlers — once per post.
+            foreach ( $chunk as $post_id ) {
+                wp_cache_delete( $post_id, 'posts' );
+                wp_cache_delete( $post_id, 'post_meta' );
+
+                foreach ( $taxonomies as $taxonomy ) {
+                    wp_cache_delete( $post_id, $taxonomy . '_relationships' );
+                }
+            }
+        }
     }
 
     /**
@@ -525,9 +580,13 @@ class Cron_Handler {
 
         // Skip the write when the post is already in exactly this term, so
         // callers can distinguish a real transition from a no-op.
-        $current = wp_get_object_terms( $post_id, $schedule->taxonomy, [ 'fields' => 'slugs' ] );
+        // get_the_terms() reads the object-term cache primed by in_chunks();
+        // wp_get_object_terms() bypasses that cache and costs one query per
+        // post, which on a large archive is the whole run's query budget.
+        $current_terms = get_the_terms( $post_id, $schedule->taxonomy );
+        $current       = is_array( $current_terms ) ? wp_list_pluck( $current_terms, 'slug' ) : [];
 
-        if ( ! is_wp_error( $current ) && [ $term ] === $current ) {
+        if ( [ $term ] === $current ) {
             return false;
         }
 

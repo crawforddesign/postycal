@@ -832,44 +832,105 @@ class Admin {
             return;
         }
 
-        foreach ( $this->schedule_manager->get_for_post_type( $post->post_type ) as $schedule ) {
-            $override = Override::sanitize( get_post_meta( $post->ID, $schedule->get_override_meta_key(), true ) );
+        $schedules = $this->schedule_manager->get_for_post_type( $post->post_type );
 
-            // An overridden post ignores its dates, so warning about them
-            // would be noise. Confirm the override instead.
-            if ( ! Override::is_automatic( $override ) ) {
-                $this->render_schedule_notice(
-                    sprintf(
-                        /* translators: 1: schedule name, 2: override label */
-                        __( 'Schedule "%1$s" is overridden for this post: %2$s', 'postycal' ),
-                        $schedule->name,
-                        Override::label( $override )
-                    ),
-                    'info'
-                );
+        // With one schedule the meta box carries no heading, so naming it
+        // here would be noise. With several, the editor cannot tell which
+        // set of dates a notice is about without being told.
+        $name_the_schedule = count( $schedules ) > 1;
+
+        foreach ( $schedules as $schedule ) {
+            $notice = $this->schedule_notice_for( $post, $schedule );
+
+            if ( null === $notice ) {
                 continue;
             }
 
-            $go_live    = get_post_meta( $post->ID, $schedule->get_go_live_meta_key(), true );
-            $expiration = get_post_meta( $post->ID, $schedule->get_expiration_meta_key(), true );
+            [ $message, $type ] = $notice;
 
-            if ( empty( $go_live ) || empty( $expiration ) ) {
-                $this->render_schedule_notice(
-                    __( 'This post is missing a go-live or expiration date. It will not be published automatically until both dates are set.', 'postycal' )
+            if ( $name_the_schedule ) {
+                $message = sprintf(
+                    /* translators: 1: schedule name, 2: the notice text */
+                    __( '%1$s — %2$s', 'postycal' ),
+                    $schedule->name,
+                    $message
                 );
-                return;
             }
 
-            $go_live_date    = Date_Handler::parse_date( $go_live );
-            $expiration_date = Date_Handler::parse_date( $expiration );
-
-            if ( null !== $go_live_date && null !== $expiration_date && $expiration_date <= $go_live_date ) {
-                $this->render_schedule_notice(
-                    __( 'The expiration date is on or before the go-live date. This post will be sent straight to the past term instead of going live.', 'postycal' )
-                );
-                return;
-            }
+            $this->render_schedule_notice( $message, $type );
         }
+    }
+
+    /**
+     * Decide what to tell the editor about one schedule, if anything.
+     *
+     * Each message describes what PostyCal will actually do, which depends
+     * on which of the two dates are filled in:
+     *
+     *   neither          nothing at all — the post sits outside the schedule
+     *   go-live only     publishes on the date, then stays live indefinitely
+     *   expiration only  never publishes itself, but retires if published by hand
+     *   both             the full lifecycle, so there is nothing to say
+     *
+     * @param \WP_Post $post     The post being edited.
+     * @param Schedule $schedule The schedule to report on.
+     * @return array{0: string, 1: string}|null Message and notice type, or null when there is nothing to report.
+     */
+    private function schedule_notice_for( \WP_Post $post, Schedule $schedule ): ?array {
+        $override = Override::sanitize( get_post_meta( $post->ID, $schedule->get_override_meta_key(), true ) );
+
+        // An overridden post ignores its dates, so warning about them would
+        // be noise. Confirm the override instead.
+        if ( ! Override::is_automatic( $override ) ) {
+            return [
+                sprintf(
+                    /* translators: %s: override label */
+                    __( 'This post is overridden: %s', 'postycal' ),
+                    Override::label( $override )
+                ),
+                'info',
+            ];
+        }
+
+        $go_live    = get_post_meta( $post->ID, $schedule->get_go_live_meta_key(), true );
+        $expiration = get_post_meta( $post->ID, $schedule->get_expiration_meta_key(), true );
+
+        if ( empty( $go_live ) && empty( $expiration ) ) {
+            return [
+                __( 'No dates are set, so PostyCal will leave this post alone. Add a go-live date to have it published for you.', 'postycal' ),
+                'warning',
+            ];
+        }
+
+        if ( empty( $go_live ) ) {
+            return [
+                __( 'No go-live date is set, so PostyCal will not publish this post for you. Publish it yourself and it will be made private on its expiration date.', 'postycal' ),
+                'warning',
+            ];
+        }
+
+        if ( empty( $expiration ) ) {
+            return [
+                __( 'No expiration date is set. This post will be published on its go-live date and stay live until you set one.', 'postycal' ),
+                'info',
+            ];
+        }
+
+        $go_live_date    = Date_Handler::parse_date( $go_live );
+        $expiration_date = Date_Handler::parse_date( $expiration );
+
+        // Strictly before, not on. Matching dates give the post a one-day
+        // run — expiry is exclusive, so it stays live for the whole of its
+        // expiration day — which is a legitimate way to schedule a one-day
+        // event and not something to warn about.
+        if ( null !== $go_live_date && null !== $expiration_date && $expiration_date < $go_live_date ) {
+            return [
+                __( 'The expiration date is before the go-live date, so this post will be made private instead of going live.', 'postycal' ),
+                'warning',
+            ];
+        }
+
+        return null;
     }
 
     /**
