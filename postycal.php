@@ -3,7 +3,7 @@
  * Plugin Name: PostyCal
  * Plugin URI: https://crawforddesigngroup.com/postycal
  * Description: Automatically manages post category transitions based on date fields
- * Version: 2.4.1
+ * Version: 2.5.0
  * Requires at least: 6.0
  * Requires PHP: 8.2
  * Author: Crawford Design Group
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants.
-define( 'POSTYCAL_VERSION', '2.4.1' );
+define( 'POSTYCAL_VERSION', '2.5.0' );
 define( 'POSTYCAL_PLUGIN_FILE', __FILE__ );
 define( 'POSTYCAL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'POSTYCAL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

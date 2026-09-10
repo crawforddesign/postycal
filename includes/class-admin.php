@@ -86,13 +86,22 @@ class Admin {
     // -------------------------------------------------------------------------
 
     public function add_admin_menu(): void {
-        $this->hook_suffix = add_options_page(
+        $hook_suffix = add_options_page(
             __( 'PostyCal Settings', 'postycal' ),
             __( 'PostyCal', 'postycal' ),
             'manage_options',
             'postycal-settings',
             [ $this, 'render_settings_page' ]
         );
+
+        // add_options_page() returns false for a user who lacks the
+        // capability. Assigning that to a string property under
+        // strict_types is a TypeError, and admin_menu fires on every admin
+        // screen — so letting it through takes down the whole dashboard for
+        // everyone who is not an administrator. Falling back to '' also
+        // keeps enqueue_assets() from ever matching, which is correct:
+        // there is no settings page for them to load assets on.
+        $this->hook_suffix = is_string( $hook_suffix ) ? $hook_suffix : '';
     }
 
     public function enqueue_assets( string $hook ): void {

@@ -53,6 +53,20 @@ final class Updater {
     private const FAILURE_MARKER = 'unavailable';
 
     /**
+     * Query arg and nonce action for the Plugins-screen check link.
+     *
+     * @var string
+     */
+    private const CHECK_ACTION = 'postycal_check_update';
+
+    /**
+     * Query arg carrying the check result back to the Plugins screen.
+     *
+     * @var string
+     */
+    private const RESULT_ARG = 'postycal_update_checked';
+
+    /**
      * Register the update hooks.
      *
      * Not gated on is_admin(): update checks also run from wp-cron.
@@ -63,6 +77,115 @@ final class Updater {
         add_filter( 'update_plugins_github.com', [ $this, 'check_for_update' ], 10, 3 );
         add_filter( 'plugins_api', [ $this, 'plugin_details' ], 10, 3 );
         add_action( 'upgrader_process_complete', [ $this, 'clear_cache' ] );
+
+        // Plugins-screen affordances. None of these fire outside the admin
+        // anyway; registering them here keeps the front-end hook list short.
+        if ( is_admin() ) {
+            add_filter( 'plugin_row_meta', [ $this, 'add_check_link' ], 10, 2 );
+            add_action( 'admin_init', [ $this, 'handle_manual_check' ] );
+            add_action( 'admin_notices', [ $this, 'render_manual_check_notice' ] );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Manual check from the Plugins screen
+    // -------------------------------------------------------------------------
+
+    /**
+     * Add a "Check for updates" link to the plugin's row on the Plugins screen.
+     *
+     * Core only offers "Check again" on Dashboard - Updates, which re-checks
+     * every plugin and theme on the site. This is the per-plugin equivalent,
+     * next to "View details", where someone looking at PostyCal expects it.
+     *
+     * @param string[] $plugin_meta The row's meta links.
+     * @param string   $plugin_file Plugin basename for the row being rendered.
+     * @return string[]
+     */
+    public function add_check_link( array $plugin_meta, string $plugin_file ): array {
+        if ( POSTYCAL_PLUGIN_BASENAME !== $plugin_file || ! current_user_can( 'update_plugins' ) ) {
+            return $plugin_meta;
+        }
+
+        $url = wp_nonce_url(
+            add_query_arg( self::CHECK_ACTION, 1, self_admin_url( 'plugins.php' ) ),
+            self::CHECK_ACTION
+        );
+
+        $plugin_meta[] = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url( $url ),
+            esc_html__( 'Check for updates', 'postycal' )
+        );
+
+        return $plugin_meta;
+    }
+
+    /**
+     * Run a fresh check when that link is clicked, then redirect back.
+     *
+     * @return void
+     */
+    public function handle_manual_check(): void {
+        if ( ! isset( $_GET[ self::CHECK_ACTION ] ) ) {
+            return;
+        }
+
+        if ( ! current_user_can( 'update_plugins' ) ) {
+            wp_die( esc_html__( 'You are not allowed to check for plugin updates.', 'postycal' ) );
+        }
+
+        check_admin_referer( self::CHECK_ACTION );
+
+        // Drop the cached release *and* core's plugin update data. Clearing
+        // ours alone would leave the Plugins screen showing the result of
+        // core's last check, which it holds for up to 12 hours — so the link
+        // would look like it had done nothing.
+        delete_transient( self::CACHE_KEY );
+        delete_site_transient( 'update_plugins' );
+        wp_update_plugins();
+
+        $updates = get_site_transient( 'update_plugins' );
+        $status  = isset( $updates->response[ POSTYCAL_PLUGIN_BASENAME ] ) ? 'update' : 'current';
+
+        // Reads the transient the check above just wrote, so this costs no
+        // second request. A failed lookup leaves the failure marker behind
+        // and reports null, which is the one case worth saying out loud:
+        // "no update" and "could not ask" look identical otherwise.
+        if ( null === $this->get_latest_release() ) {
+            $status = 'error';
+        }
+
+        wp_safe_redirect( add_query_arg( self::RESULT_ARG, $status, self_admin_url( 'plugins.php' ) ) );
+        exit;
+    }
+
+    /**
+     * Report the outcome of a manual check.
+     *
+     * @return void
+     */
+    public function render_manual_check_notice(): void {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- displays a status this class set on its own redirect; changes nothing.
+        $status = isset( $_GET[ self::RESULT_ARG ] ) ? sanitize_key( wp_unslash( $_GET[ self::RESULT_ARG ] ) ) : '';
+
+        $notices = [
+            'update'  => [ __( 'A new version of PostyCal is available — see the row below.', 'postycal' ), 'info' ],
+            'current' => [ __( 'PostyCal is up to date.', 'postycal' ), 'success' ],
+            'error'   => [ __( 'PostyCal could not reach GitHub to check for updates. Try again in a few minutes.', 'postycal' ), 'error' ],
+        ];
+
+        if ( ! isset( $notices[ $status ] ) ) {
+            return;
+        }
+
+        [ $message, $type ] = $notices[ $status ];
+
+        printf(
+            '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
+            esc_attr( $type ),
+            esc_html( $message )
+        );
     }
 
     // -------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # PostyCal
 
-**Version:** 2.4.1  
+**Version:** 2.5.0  
 **Requires WordPress:** 6.0+  
 **Requires PHP:** 8.2+  
 **License:** GPL v3 or later
@@ -144,7 +144,7 @@ Once installed, PostyCal checks GitHub for new releases and offers them under **
 
 This works through the `Update URI` header, which does two things: it routes the check to PostyCal's own updater, and it stops WordPress ever accepting an update for this plugin from wordpress.org — which would otherwise be possible for anyone who published a plugin there under the slug `postycal`.
 
-The check is cached for 6 hours, or 15 minutes after a failure so a GitHub outage doesn't mean a request on every page load. **Check again** on the Updates screen bypasses the cache.
+The check is cached for 6 hours, or 15 minutes after a failure so a GitHub outage doesn't mean a request on every page load. Two things bypass the cache: **Check again** on **Dashboard → Updates**, and **Check for updates** on PostyCal's own row on the Plugins screen, which re-checks this plugin alone and reports the result inline.
 
 A release is only offered if it has a plugin zip attached. Drafts and pre-releases are ignored, and so is a release carrying only GitHub's auto-generated source archives — those unpack to a directory named after the tag, so WordPress would install a second copy of the plugin instead of upgrading the existing one.
 
@@ -174,6 +174,10 @@ bin/build-release.sh
 ```
 
 ## Changelog
+
+### 2.5.0
+- **Fixed a fatal error that locked every non-administrator out of wp-admin.** `add_options_page()` returns `false` for a user without `manage_options`, and assigning that to a typed property under `strict_types` threw a `TypeError` on `admin_menu` — which fires on every admin screen. Editors, authors, contributors and subscribers got "There has been a critical error on this website" on every page of the dashboard. Present since at least 2.4.0
+- Added a **Check for updates** link to PostyCal's row on the Plugins screen, next to "View details". Core only offers "Check again" on Dashboard → Updates, which re-checks every plugin and theme on the site; this re-checks PostyCal alone and reports the result inline
 
 ### 2.4.1
 - Scheduled runs no longer issue a database query per post to read its current term; on a 25,000-post archive a run dropped from roughly 20,100 queries to 620
