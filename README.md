@@ -1,6 +1,6 @@
 # PostyCal
 
-**Version:** 2.5.0  
+**Version:** 2.5.1  
 **Requires WordPress:** 6.0+  
 **Requires PHP:** 8.2+  
 **License:** GPL v3 or later
@@ -174,6 +174,13 @@ bin/build-release.sh
 ```
 
 ## Changelog
+
+### 2.5.1
+- **Settings page now opens on the right tab.** The tab order was Schedules → Post Types → Taxonomies, backwards from the documented setup order — a first-time user landed on a tab with nothing to select. Tabs are now ordered Post Types → Taxonomies → Schedules, and the page opens on Post Types until at least one schedule exists, after which it opens on Schedules
+- The **How PostyCal Works** box now shows above the tabs on every visit instead of only inside the Schedules tab, and notes that you can skip straight to Schedules if you already have a post type and taxonomy to reuse
+- Added a **Settings** link to PostyCal's row on the Plugins screen
+- A managed post type's list screen (Posts, or any custom post type with a schedule) now shows a **Scheduled by PostyCal** link alongside All / Published / Trash, so there's a way back to the schedule from the content it governs
+- The Plugins-screen description now describes what PostyCal actually does, replacing wording left over from before the 2.1 rewrite
 
 ### 2.5.0
 - **Fixed a fatal error that locked every non-administrator out of wp-admin.** `add_options_page()` returns `false` for a user without `manage_options`, and assigning that to a typed property under `strict_types` threw a `TypeError` on `admin_menu` — which fires on every admin screen. Editors, authors, contributors and subscribers got "There has been a critical error on this website" on every page of the dashboard. Present since at least 2.4.0

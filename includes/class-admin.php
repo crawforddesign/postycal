@@ -62,6 +62,8 @@ class Admin {
         add_action( 'save_post', [ $this, 'save_meta_box_data' ], 10, 1 );
         add_action( 'admin_head', [ $this, 'maybe_hide_publish_date' ] );
         add_action( 'admin_notices', [ $this, 'display_missing_dates_notice' ] );
+        add_action( 'current_screen', [ $this, 'register_view_link_for_screen' ] );
+        add_filter( 'plugin_action_links_' . POSTYCAL_PLUGIN_BASENAME, [ $this, 'add_settings_link' ] );
 
         // Schedule AJAX.
         add_action( 'wp_ajax_postycal_save_schedule', [ $this, 'ajax_save_schedule' ] );
@@ -102,6 +104,63 @@ class Admin {
         // keeps enqueue_assets() from ever matching, which is correct:
         // there is no settings page for them to load assets on.
         $this->hook_suffix = is_string( $hook_suffix ) ? $hook_suffix : '';
+    }
+
+    /**
+     * Add a "Settings" link to PostyCal's row on the Plugins screen.
+     *
+     * @param string[] $links Existing action links.
+     * @return string[]
+     */
+    public function add_settings_link( array $links ): array {
+        array_unshift(
+            $links,
+            sprintf(
+                '<a href="%s">%s</a>',
+                esc_url( admin_url( 'options-general.php?page=postycal-settings' ) ),
+                esc_html__( 'Settings', 'postycal' )
+            )
+        );
+
+        return $links;
+    }
+
+    /**
+     * On a managed post type's list screen, register a filter that adds a
+     * link back to PostyCal's settings alongside the All / Published /
+     * Trash views — the only trace of PostyCal an editor otherwise sees is
+     * the meta box on individual posts, with no path back to the schedule
+     * that governs the whole list.
+     *
+     * @param \WP_Screen $screen Current screen.
+     * @return void
+     */
+    public function register_view_link_for_screen( \WP_Screen $screen ): void {
+        if ( 'edit' !== $screen->base ) {
+            return;
+        }
+
+        if ( empty( $this->schedule_manager->get_for_post_type( $screen->post_type ) ) ) {
+            return;
+        }
+
+        add_filter( 'views_edit-' . $screen->post_type, [ $this, 'add_schedule_view_link' ] );
+    }
+
+    /**
+     * Append the "Scheduled by PostyCal" link to a post list's views row.
+     *
+     * @param string[] $views Existing view links, keyed by view name.
+     * @return string[]
+     */
+    public function add_schedule_view_link( array $views ): array {
+        $views['postycal'] = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url( admin_url( 'options-general.php?page=postycal-settings' ) ),
+            esc_html__( 'Scheduled by PostyCal', 'postycal' )
+        );
+
+        return $views;
     }
 
     public function enqueue_assets( string $hook ): void {
@@ -227,49 +286,52 @@ class Admin {
         ];
     }
 
+    /**
+     * Decide which tab should be open when the settings page loads.
+     *
+     * A site with no schedules yet hasn't finished setup, so it lands on
+     * the first step of the documented flow. Once at least one schedule
+     * exists, setup is functionally done and Schedules is the tab someone
+     * returns to day to day.
+     *
+     * @return string One of 'post-types', 'taxonomies', 'schedules'.
+     */
+    private function get_default_tab(): string {
+        return $this->schedule_manager->has_schedules() ? 'schedules' : 'post-types';
+    }
+
     public function render_settings_page(): void {
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
+
+        $default_tab = $this->get_default_tab();
+        $is_active   = fn( string $tab ): string => $tab === $default_tab ? ' nav-tab-active' : '';
+        $panel_style = fn( string $tab ): string => $tab === $default_tab ? '' : ' style="display:none;"';
         ?>
         <div class="wrap postycal-settings">
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
+            <?php $this->render_info_box(); ?>
+
             <nav class="nav-tab-wrapper postycal-tab-nav">
-                <button type="button" class="nav-tab nav-tab-active postycal-tab-btn" data-tab="schedules">
-                    <?php esc_html_e( 'Schedules', 'postycal' ); ?>
-                </button>
-                <button type="button" class="nav-tab postycal-tab-btn" data-tab="post-types">
+                <button type="button" class="nav-tab<?php echo $is_active( 'post-types' ); ?> postycal-tab-btn" data-tab="post-types">
                     <?php esc_html_e( 'Post Types', 'postycal' ); ?>
                 </button>
-                <button type="button" class="nav-tab postycal-tab-btn" data-tab="taxonomies">
+                <button type="button" class="nav-tab<?php echo $is_active( 'taxonomies' ); ?> postycal-tab-btn" data-tab="taxonomies">
                     <?php esc_html_e( 'Taxonomies', 'postycal' ); ?>
+                </button>
+                <button type="button" class="nav-tab<?php echo $is_active( 'schedules' ); ?> postycal-tab-btn" data-tab="schedules">
+                    <?php esc_html_e( 'Schedules', 'postycal' ); ?>
                 </button>
             </nav>
 
-            <?php /* ---- SCHEDULES TAB ---- */ ?>
-            <div id="postycal-tab-schedules" class="postycal-tab-panel">
-                <?php $this->render_info_box(); ?>
-                <h2><?php esc_html_e( 'Schedules', 'postycal' ); ?></h2>
-                <div id="postycal-schedules-container">
-                    <?php $this->render_schedules_table( $this->schedule_manager->get_all() ); ?>
-                </div>
-                <p class="submit">
-                    <button type="button" class="button button-primary" id="postycal-add-schedule">
-                        <?php esc_html_e( 'Add New Schedule', 'postycal' ); ?>
-                    </button>
-                    <button type="button" class="button button-secondary" id="postycal-trigger-cron"
-                        <?php echo $this->schedule_manager->has_schedules() ? '' : 'style="display:none;"'; ?>>
-                        <?php esc_html_e( 'Run All Schedules Now', 'postycal' ); ?>
-                    </button>
-                </p>
-            </div>
-
             <?php /* ---- POST TYPES TAB ---- */ ?>
-            <div id="postycal-tab-post-types" class="postycal-tab-panel" style="display:none;">
+            <div id="postycal-tab-post-types" class="postycal-tab-panel"<?php echo $panel_style( 'post-types' ); ?>>
                 <h2><?php esc_html_e( 'Post Types', 'postycal' ); ?></h2>
                 <p class="description">
                     <?php esc_html_e( 'Create custom post types that PostyCal will manage. After saving, the post type is available immediately in the Schedules and Taxonomies tabs.', 'postycal' ); ?>
+                    <?php esc_html_e( 'Already have a post type in mind — Post, Page, or an existing custom type? Skip this step; every public post type is available directly on the Schedules tab.', 'postycal' ); ?>
                 </p>
                 <div id="postycal-post-types-container">
                     <?php $this->render_post_types_table( $this->post_type_manager->get_all() ); ?>
@@ -282,10 +344,11 @@ class Admin {
             </div>
 
             <?php /* ---- TAXONOMIES TAB ---- */ ?>
-            <div id="postycal-tab-taxonomies" class="postycal-tab-panel" style="display:none;">
+            <div id="postycal-tab-taxonomies" class="postycal-tab-panel"<?php echo $panel_style( 'taxonomies' ); ?>>
                 <h2><?php esc_html_e( 'Taxonomies', 'postycal' ); ?></h2>
                 <p class="description">
                     <?php esc_html_e( 'Create taxonomies and assign them to post types. Seed terms (Upcoming, Active, Past) are created automatically so the taxonomy is ready for a PostyCal schedule immediately.', 'postycal' ); ?>
+                    <?php esc_html_e( 'Reusing an existing taxonomy works too, as long as it already carries the three terms a schedule needs.', 'postycal' ); ?>
                 </p>
                 <div id="postycal-taxonomies-container">
                     <?php $this->render_taxonomies_table( $this->taxonomy_manager->get_all() ); ?>
@@ -293,6 +356,23 @@ class Admin {
                 <p class="submit">
                     <button type="button" class="button button-primary" id="postycal-add-taxonomy">
                         <?php esc_html_e( 'Add New Taxonomy', 'postycal' ); ?>
+                    </button>
+                </p>
+            </div>
+
+            <?php /* ---- SCHEDULES TAB ---- */ ?>
+            <div id="postycal-tab-schedules" class="postycal-tab-panel"<?php echo $panel_style( 'schedules' ); ?>>
+                <h2><?php esc_html_e( 'Schedules', 'postycal' ); ?></h2>
+                <div id="postycal-schedules-container">
+                    <?php $this->render_schedules_table( $this->schedule_manager->get_all() ); ?>
+                </div>
+                <p class="submit">
+                    <button type="button" class="button button-primary" id="postycal-add-schedule">
+                        <?php esc_html_e( 'Add New Schedule', 'postycal' ); ?>
+                    </button>
+                    <button type="button" class="button button-secondary" id="postycal-trigger-cron"
+                        <?php echo $this->schedule_manager->has_schedules() ? '' : 'style="display:none;"'; ?>>
+                        <?php esc_html_e( 'Run All Schedules Now', 'postycal' ); ?>
                     </button>
                 </p>
             </div>
@@ -318,7 +398,7 @@ class Admin {
                 <li><strong><?php esc_html_e( 'On go-live date:', 'postycal' ); ?></strong> <?php esc_html_e( 'PostyCal publishes the post and assigns the Active term.', 'postycal' ); ?></li>
                 <li><strong><?php esc_html_e( 'On expiration date:', 'postycal' ); ?></strong> <?php esc_html_e( 'PostyCal sets the post to private and assigns the Past term.', 'postycal' ); ?></li>
             </ol>
-            <p><strong><?php esc_html_e( 'Recommended setup order:', 'postycal' ); ?></strong> <?php esc_html_e( 'Post Types → Taxonomies (with seed terms) → Schedules.', 'postycal' ); ?></p>
+            <p><strong><?php esc_html_e( 'Recommended setup order:', 'postycal' ); ?></strong> <?php esc_html_e( 'Post Types → Taxonomies (with seed terms) → Schedules. Already have a post type and taxonomy you want to use instead? Skip straight to Schedules.', 'postycal' ); ?></p>
             <p><strong><?php esc_html_e( 'Per-post overrides:', 'postycal' ); ?></strong> <?php esc_html_e( 'Any individual post can opt out of its schedule from the Publication Schedule box on the post editor — held untouched, or pinned to a state regardless of its dates.', 'postycal' ); ?></p>
         </div>
         <?php
