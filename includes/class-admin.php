@@ -287,17 +287,39 @@ class Admin {
     }
 
     /**
-     * Decide which tab should be open when the settings page loads.
+     * Post types that are public on this site but not among PostyCal's own
+     * managed definitions — i.e. everything already usable directly on the
+     * Schedules tab without creating anything here (core Post/Page, a type
+     * from ACF's Post Type UI, CPT UI, or hand-coded elsewhere).
      *
-     * A site with no schedules yet hasn't finished setup, so it lands on
-     * the first step of the documented flow. Once at least one schedule
-     * exists, setup is functionally done and Schedules is the tab someone
-     * returns to day to day.
-     *
-     * @return string One of 'post-types', 'taxonomies', 'schedules'.
+     * @return array<int, array{slug: string, label: string}>
      */
-    private function get_default_tab(): string {
-        return $this->schedule_manager->has_schedules() ? 'schedules' : 'post-types';
+    private function get_other_post_type_choices(): array {
+        $managed = array_map( fn( Post_Type $pt ): string => $pt->slug, $this->post_type_manager->get_all() );
+
+        return array_values(
+            array_filter(
+                $this->get_post_type_choices(),
+                fn( array $choice ): bool => ! in_array( $choice['slug'], $managed, true )
+            )
+        );
+    }
+
+    /**
+     * A small line-icon set for the sidebar nav, in the same stroke style
+     * throughout (24x24 viewBox, currentColor, 2px round strokes).
+     *
+     * @param string $tab One of 'post-types', 'taxonomies', 'schedules'.
+     * @return string Trusted raw SVG.
+     */
+    private function nav_icon( string $tab ): string {
+        $icons = [
+            'post-types' => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+            'taxonomies' => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.41l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
+            'schedules'  => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+        ];
+
+        return $icons[ $tab ] ?? '';
     }
 
     public function render_settings_page(): void {
@@ -305,76 +327,115 @@ class Admin {
             return;
         }
 
-        $default_tab = $this->get_default_tab();
-        $is_active   = fn( string $tab ): string => $tab === $default_tab ? ' nav-tab-active' : '';
+        // The sidebar order follows the documented setup flow, but someone
+        // opening Settings has almost always already finished that setup —
+        // Schedules is where the day-to-day work happens, so that is what
+        // opens regardless of position in the list.
+        $default_tab = 'schedules';
+        $is_active   = fn( string $tab ): string => $tab === $default_tab ? ' postycal-active' : '';
         $panel_style = fn( string $tab ): string => $tab === $default_tab ? '' : ' style="display:none;"';
         ?>
-        <div class="wrap postycal-settings">
-            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-
-            <?php $this->render_info_box(); ?>
-
-            <nav class="nav-tab-wrapper postycal-tab-nav">
-                <button type="button" class="nav-tab<?php echo $is_active( 'post-types' ); ?> postycal-tab-btn" data-tab="post-types">
-                    <?php esc_html_e( 'Post Types', 'postycal' ); ?>
-                </button>
-                <button type="button" class="nav-tab<?php echo $is_active( 'taxonomies' ); ?> postycal-tab-btn" data-tab="taxonomies">
-                    <?php esc_html_e( 'Taxonomies', 'postycal' ); ?>
-                </button>
-                <button type="button" class="nav-tab<?php echo $is_active( 'schedules' ); ?> postycal-tab-btn" data-tab="schedules">
-                    <?php esc_html_e( 'Schedules', 'postycal' ); ?>
-                </button>
-            </nav>
-
-            <?php /* ---- POST TYPES TAB ---- */ ?>
-            <div id="postycal-tab-post-types" class="postycal-tab-panel"<?php echo $panel_style( 'post-types' ); ?>>
-                <h2><?php esc_html_e( 'Post Types', 'postycal' ); ?></h2>
-                <p class="description">
-                    <?php esc_html_e( 'Create custom post types that PostyCal will manage. After saving, the post type is available immediately in the Schedules and Taxonomies tabs.', 'postycal' ); ?>
-                    <?php esc_html_e( 'Already have a post type in mind — Post, Page, or an existing custom type? Skip this step; every public post type is available directly on the Schedules tab.', 'postycal' ); ?>
-                </p>
-                <div id="postycal-post-types-container">
-                    <?php $this->render_post_types_table( $this->post_type_manager->get_all() ); ?>
+        <div class="wrap postycal-settings postycal-v2">
+            <div class="postycal-page-header">
+                <div class="postycal-page-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+                    <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+                    <span class="postycal-badge">v<?php echo esc_html( POSTYCAL_VERSION ); ?></span>
                 </div>
-                <p class="submit">
-                    <button type="button" class="button button-primary" id="postycal-add-post-type">
-                        <?php esc_html_e( 'Add New Post Type', 'postycal' ); ?>
-                    </button>
-                </p>
             </div>
 
-            <?php /* ---- TAXONOMIES TAB ---- */ ?>
-            <div id="postycal-tab-taxonomies" class="postycal-tab-panel"<?php echo $panel_style( 'taxonomies' ); ?>>
-                <h2><?php esc_html_e( 'Taxonomies', 'postycal' ); ?></h2>
-                <p class="description">
-                    <?php esc_html_e( 'Create taxonomies and assign them to post types. Seed terms (Upcoming, Active, Past) are created automatically so the taxonomy is ready for a PostyCal schedule immediately.', 'postycal' ); ?>
-                    <?php esc_html_e( 'Reusing an existing taxonomy works too, as long as it already carries the three terms a schedule needs.', 'postycal' ); ?>
-                </p>
-                <div id="postycal-taxonomies-container">
-                    <?php $this->render_taxonomies_table( $this->taxonomy_manager->get_all() ); ?>
-                </div>
-                <p class="submit">
-                    <button type="button" class="button button-primary" id="postycal-add-taxonomy">
-                        <?php esc_html_e( 'Add New Taxonomy', 'postycal' ); ?>
-                    </button>
-                </p>
-            </div>
+            <div class="postycal-body-layout">
 
-            <?php /* ---- SCHEDULES TAB ---- */ ?>
-            <div id="postycal-tab-schedules" class="postycal-tab-panel"<?php echo $panel_style( 'schedules' ); ?>>
-                <h2><?php esc_html_e( 'Schedules', 'postycal' ); ?></h2>
-                <div id="postycal-schedules-container">
-                    <?php $this->render_schedules_table( $this->schedule_manager->get_all() ); ?>
-                </div>
-                <p class="submit">
-                    <button type="button" class="button button-primary" id="postycal-add-schedule">
-                        <?php esc_html_e( 'Add New Schedule', 'postycal' ); ?>
+                <nav class="postycal-sidebar">
+                    <div class="postycal-sidebar-label"><?php esc_html_e( 'Settings', 'postycal' ); ?></div>
+                    <button type="button" class="postycal-nav-item<?php echo $is_active( 'post-types' ); ?> postycal-tab-btn" data-tab="post-types">
+                        <?php echo $this->nav_icon( 'post-types' ); // phpcs:ignore WordPress.Security.EscapeOutput -- static trusted SVG ?>
+                        <?php esc_html_e( 'Post Types', 'postycal' ); ?>
                     </button>
-                    <button type="button" class="button button-secondary" id="postycal-trigger-cron"
-                        <?php echo $this->schedule_manager->has_schedules() ? '' : 'style="display:none;"'; ?>>
-                        <?php esc_html_e( 'Run All Schedules Now', 'postycal' ); ?>
+                    <button type="button" class="postycal-nav-item<?php echo $is_active( 'taxonomies' ); ?> postycal-tab-btn" data-tab="taxonomies">
+                        <?php echo $this->nav_icon( 'taxonomies' ); // phpcs:ignore WordPress.Security.EscapeOutput -- static trusted SVG ?>
+                        <?php esc_html_e( 'Taxonomies', 'postycal' ); ?>
                     </button>
-                </p>
+                    <button type="button" class="postycal-nav-item<?php echo $is_active( 'schedules' ); ?> postycal-tab-btn" data-tab="schedules">
+                        <?php echo $this->nav_icon( 'schedules' ); // phpcs:ignore WordPress.Security.EscapeOutput -- static trusted SVG ?>
+                        <?php esc_html_e( 'Schedules', 'postycal' ); ?>
+                    </button>
+                </nav>
+
+                <main class="postycal-content">
+                    <?php $this->render_info_box(); ?>
+
+                    <?php /* ---- POST TYPES TAB ---- */ ?>
+                    <div id="postycal-tab-post-types" class="postycal-tab-panel"<?php echo $panel_style( 'post-types' ); ?>>
+                        <div class="postycal-card">
+                            <div class="postycal-card-header">
+                                <div class="postycal-card-title"><?php esc_html_e( 'Post Types', 'postycal' ); ?></div>
+                                <p class="postycal-card-desc">
+                                    <?php esc_html_e( 'Create custom post types that PostyCal will manage. After saving, the post type is available immediately in the Schedules and Taxonomies tabs.', 'postycal' ); ?>
+                                    <?php esc_html_e( 'Already have a post type in mind — Post, Page, or an existing custom type? Skip this step; every public post type is available directly on the Schedules tab.', 'postycal' ); ?>
+                                </p>
+                            </div>
+                            <div class="postycal-card-body">
+                                <div id="postycal-post-types-container">
+                                    <?php $this->render_post_types_table( $this->post_type_manager->get_all() ); ?>
+                                </div>
+                                <?php $this->render_other_post_types(); ?>
+                            </div>
+                            <div class="postycal-card-footer">
+                                <button type="button" class="postycal-btn postycal-btn-primary" id="postycal-add-post-type">
+                                    <?php esc_html_e( 'Add New Post Type', 'postycal' ); ?>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php /* ---- TAXONOMIES TAB ---- */ ?>
+                    <div id="postycal-tab-taxonomies" class="postycal-tab-panel"<?php echo $panel_style( 'taxonomies' ); ?>>
+                        <div class="postycal-card">
+                            <div class="postycal-card-header">
+                                <div class="postycal-card-title"><?php esc_html_e( 'Taxonomies', 'postycal' ); ?></div>
+                                <p class="postycal-card-desc">
+                                    <?php esc_html_e( 'Create taxonomies and assign them to post types. Seed terms (Upcoming, Active, Past) are created automatically so the taxonomy is ready for a PostyCal schedule immediately.', 'postycal' ); ?>
+                                    <?php esc_html_e( 'Reusing an existing taxonomy works too, as long as it already carries the three terms a schedule needs.', 'postycal' ); ?>
+                                </p>
+                            </div>
+                            <div class="postycal-card-body">
+                                <div id="postycal-taxonomies-container">
+                                    <?php $this->render_taxonomies_table( $this->taxonomy_manager->get_all() ); ?>
+                                </div>
+                            </div>
+                            <div class="postycal-card-footer">
+                                <button type="button" class="postycal-btn postycal-btn-primary" id="postycal-add-taxonomy">
+                                    <?php esc_html_e( 'Add New Taxonomy', 'postycal' ); ?>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php /* ---- SCHEDULES TAB ---- */ ?>
+                    <div id="postycal-tab-schedules" class="postycal-tab-panel"<?php echo $panel_style( 'schedules' ); ?>>
+                        <div class="postycal-card">
+                            <div class="postycal-card-header">
+                                <div class="postycal-card-title"><?php esc_html_e( 'Schedules', 'postycal' ); ?></div>
+                            </div>
+                            <div class="postycal-card-body">
+                                <div id="postycal-schedules-container">
+                                    <?php $this->render_schedules_table( $this->schedule_manager->get_all() ); ?>
+                                </div>
+                            </div>
+                            <div class="postycal-card-footer">
+                                <button type="button" class="postycal-btn postycal-btn-primary" id="postycal-add-schedule">
+                                    <?php esc_html_e( 'Add New Schedule', 'postycal' ); ?>
+                                </button>
+                                <button type="button" class="postycal-btn postycal-btn-secondary" id="postycal-trigger-cron"
+                                    <?php echo $this->schedule_manager->has_schedules() ? '' : 'style="display:none;"'; ?>>
+                                    <?php esc_html_e( 'Run All Schedules Now', 'postycal' ); ?>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
             </div>
 
             <?php $this->render_schedule_modal(); ?>
@@ -390,17 +451,60 @@ class Admin {
 
     private function render_info_box(): void {
         ?>
-        <div class="postycal-info-box">
-            <h2><?php esc_html_e( 'How PostyCal Works', 'postycal' ); ?></h2>
-            <p><?php esc_html_e( 'PostyCal manages the full lifecycle of time-sensitive posts using two dates and three taxonomy terms:', 'postycal' ); ?></p>
-            <ol>
-                <li><strong><?php esc_html_e( 'Before go-live:', 'postycal' ); ?></strong> <?php esc_html_e( 'Post stays as a draft, assigned the Upcoming term.', 'postycal' ); ?></li>
-                <li><strong><?php esc_html_e( 'On go-live date:', 'postycal' ); ?></strong> <?php esc_html_e( 'PostyCal publishes the post and assigns the Active term.', 'postycal' ); ?></li>
-                <li><strong><?php esc_html_e( 'On expiration date:', 'postycal' ); ?></strong> <?php esc_html_e( 'PostyCal sets the post to private and assigns the Past term.', 'postycal' ); ?></li>
-            </ol>
-            <p><strong><?php esc_html_e( 'Recommended setup order:', 'postycal' ); ?></strong> <?php esc_html_e( 'Post Types → Taxonomies (with seed terms) → Schedules. Already have a post type and taxonomy you want to use instead? Skip straight to Schedules.', 'postycal' ); ?></p>
-            <p><strong><?php esc_html_e( 'Per-post overrides:', 'postycal' ); ?></strong> <?php esc_html_e( 'Any individual post can opt out of its schedule from the Publication Schedule box on the post editor — held untouched, or pinned to a state regardless of its dates.', 'postycal' ); ?></p>
+        <div class="postycal-card">
+            <div class="postycal-card-header">
+                <div class="postycal-card-title"><?php esc_html_e( 'How PostyCal Works', 'postycal' ); ?></div>
+            </div>
+            <div class="postycal-guide-body">
+                <p class="postycal-guide-intro"><?php esc_html_e( 'PostyCal manages the full lifecycle of time-sensitive posts using two dates and three taxonomy terms:', 'postycal' ); ?></p>
+                <div class="postycal-guide-group">
+                    <div>
+                        <div class="postycal-guide-item-label"><?php esc_html_e( 'Before go-live', 'postycal' ); ?></div>
+                        <div class="postycal-guide-item-desc"><?php esc_html_e( 'Post stays as a draft, assigned the Upcoming term.', 'postycal' ); ?></div>
+                    </div>
+                    <div>
+                        <div class="postycal-guide-item-label"><?php esc_html_e( 'On go-live date', 'postycal' ); ?></div>
+                        <div class="postycal-guide-item-desc"><?php esc_html_e( 'PostyCal publishes the post and assigns the Active term.', 'postycal' ); ?></div>
+                    </div>
+                    <div>
+                        <div class="postycal-guide-item-label"><?php esc_html_e( 'On expiration date', 'postycal' ); ?></div>
+                        <div class="postycal-guide-item-desc"><?php esc_html_e( 'PostyCal sets the post to private and assigns the Past term.', 'postycal' ); ?></div>
+                    </div>
+                    <div>
+                        <div class="postycal-guide-item-label"><?php esc_html_e( 'Per-post overrides', 'postycal' ); ?></div>
+                        <div class="postycal-guide-item-desc"><?php esc_html_e( 'Any individual post can opt out of its schedule from the Publication Schedule box on the post editor — held untouched, or pinned to a state regardless of its dates.', 'postycal' ); ?></div>
+                    </div>
+                </div>
+                <div class="postycal-guide-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                    <span><strong><?php esc_html_e( 'Recommended setup order:', 'postycal' ); ?></strong> <?php esc_html_e( 'Post Types → Taxonomies (with seed terms) → Schedules. Already have a post type and taxonomy you want to use instead? Skip straight to Schedules.', 'postycal' ); ?></span>
+                </div>
+            </div>
         </div>
+        <?php
+    }
+
+    /**
+     * A read-only list of public post types PostyCal didn't create — the
+     * escape hatch for someone who lands on this tab wondering whether they
+     * need to create a post type at all.
+     *
+     * @return void
+     */
+    private function render_other_post_types(): void {
+        $others = $this->get_other_post_type_choices();
+        ?>
+        <div class="postycal-sub-section"><?php esc_html_e( 'Other available post types', 'postycal' ); ?></div>
+        <?php if ( empty( $others ) ) : ?>
+            <p class="postycal-empty"><?php esc_html_e( 'No other public post types were found on this site.', 'postycal' ); ?></p>
+        <?php else : ?>
+            <div class="postycal-chip-list">
+                <?php foreach ( $others as $choice ) : ?>
+                    <span class="postycal-chip"><?php echo esc_html( $choice['label'] ); ?> <code><?php echo esc_html( $choice['slug'] ); ?></code></span>
+                <?php endforeach; ?>
+            </div>
+            <p class="postycal-card-desc" style="padding:0 20px 16px;"><?php esc_html_e( 'Already public on this site — pick any of these directly on the Schedules tab; nothing here needs to be created first.', 'postycal' ); ?></p>
+        <?php endif; ?>
         <?php
     }
 
@@ -438,8 +542,8 @@ class Admin {
                             <td><?php echo esc_html( $s->active_term ); ?></td>
                             <td><?php echo esc_html( $s->past_term ); ?></td>
                             <td>
-                                <button type="button" class="button postycal-edit-schedule" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
-                                <button type="button" class="button postycal-delete-schedule" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-secondary postycal-btn-sm postycal-edit-schedule" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-danger postycal-btn-sm postycal-delete-schedule" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -455,7 +559,7 @@ class Admin {
             <div class="postycal-modal-backdrop"></div>
             <div class="postycal-modal-content">
                 <h2 id="postycal-modal-title"><?php esc_html_e( 'Add New Schedule', 'postycal' ); ?></h2>
-                <div class="postycal-modal-error notice notice-error" style="display:none;"><p></p></div>
+                <div class="postycal-modal-error postycal-notice" style="display:none;"><p></p></div>
                 <form id="postycal-schedule-form" novalidate>
                     <input type="hidden" id="postycal-schedule-index" name="index" value="">
                     <table class="form-table">
@@ -521,8 +625,8 @@ class Admin {
                         </tr>
                     </table>
                     <p class="submit">
-                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Save Schedule', 'postycal' ); ?></button>
-                        <button type="button" class="button" id="postycal-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
+                        <button type="submit" class="postycal-btn postycal-btn-primary"><?php esc_html_e( 'Save Schedule', 'postycal' ); ?></button>
+                        <button type="button" class="postycal-btn postycal-btn-secondary" id="postycal-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
                     </p>
                 </form>
             </div>
@@ -562,8 +666,8 @@ class Admin {
                             <td><?php echo $pt->has_archive ? '✓' : '—'; ?></td>
                             <td><?php echo $pt->show_in_rest ? '✓' : '—'; ?></td>
                             <td>
-                                <button type="button" class="button postycal-edit-post-type" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
-                                <button type="button" class="button postycal-delete-post-type" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-secondary postycal-btn-sm postycal-edit-post-type" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-danger postycal-btn-sm postycal-delete-post-type" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -587,7 +691,7 @@ class Admin {
             <div class="postycal-modal-backdrop"></div>
             <div class="postycal-modal-content">
                 <h2 id="postycal-cpt-modal-title"><?php esc_html_e( 'Add New Post Type', 'postycal' ); ?></h2>
-                <div class="postycal-modal-error notice notice-error" style="display:none;"><p></p></div>
+                <div class="postycal-modal-error postycal-notice" style="display:none;"><p></p></div>
                 <form id="postycal-cpt-form" novalidate>
                     <input type="hidden" id="postycal-cpt-index" name="index" value="">
                     <table class="form-table">
@@ -649,8 +753,8 @@ class Admin {
                         </tr>
                     </table>
                     <p class="submit">
-                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Save Post Type', 'postycal' ); ?></button>
-                        <button type="button" class="button" id="postycal-cpt-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
+                        <button type="submit" class="postycal-btn postycal-btn-primary"><?php esc_html_e( 'Save Post Type', 'postycal' ); ?></button>
+                        <button type="button" class="postycal-btn postycal-btn-secondary" id="postycal-cpt-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
                     </p>
                 </form>
             </div>
@@ -690,8 +794,8 @@ class Admin {
                             <td><?php echo $tax->hierarchical ? '✓' : '—'; ?></td>
                             <td><?php echo $tax->show_in_rest ? '✓' : '—'; ?></td>
                             <td>
-                                <button type="button" class="button postycal-edit-taxonomy" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
-                                <button type="button" class="button postycal-delete-taxonomy" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-secondary postycal-btn-sm postycal-edit-taxonomy" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Edit', 'postycal' ); ?></button>
+                                <button type="button" class="postycal-btn postycal-btn-danger postycal-btn-sm postycal-delete-taxonomy" data-index="<?php echo esc_attr( (string) $i ); ?>"><?php esc_html_e( 'Delete', 'postycal' ); ?></button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -707,7 +811,7 @@ class Admin {
             <div class="postycal-modal-backdrop"></div>
             <div class="postycal-modal-content">
                 <h2 id="postycal-tax-modal-title"><?php esc_html_e( 'Add New Taxonomy', 'postycal' ); ?></h2>
-                <div class="postycal-modal-error notice notice-error" style="display:none;"><p></p></div>
+                <div class="postycal-modal-error postycal-notice" style="display:none;"><p></p></div>
                 <form id="postycal-tax-form" novalidate>
                     <input type="hidden" id="postycal-tax-index" name="index" value="">
                     <table class="form-table">
@@ -768,8 +872,8 @@ class Admin {
                         </tr>
                     </table>
                     <p class="submit">
-                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Save Taxonomy', 'postycal' ); ?></button>
-                        <button type="button" class="button" id="postycal-tax-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
+                        <button type="submit" class="postycal-btn postycal-btn-primary"><?php esc_html_e( 'Save Taxonomy', 'postycal' ); ?></button>
+                        <button type="button" class="postycal-btn postycal-btn-secondary" id="postycal-tax-cancel"><?php esc_html_e( 'Cancel', 'postycal' ); ?></button>
                     </p>
                 </form>
             </div>

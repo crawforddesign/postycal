@@ -1,76 +1,570 @@
 /**
  * PostyCal Admin Styles
  *
+ * Follows the CDG Core "v2" design system (shadcn-inspired), scoped under
+ * .postycal-v2 so it can't collide with cdg-core's own .cdg-v2 rules when
+ * both plugins are active on the same site.
+ *
  * @package PostyCal
- * @since 2.0.0
+ * @since 2.6.0
  */
 
-/* Tab navigation — uses <button> elements styled as tabs */
-.postycal-tab-nav {
-    margin-bottom: 0;
-    border-bottom: 1px solid #c3c4c7;
+/* ── Variables & base ── */
+.postycal-v2 {
+    --pc-surface: #ffffff;
+    --pc-muted: #f4f4f5;
+    --pc-muted-fg: #71717a;
+    --pc-border: #e4e4e7;
+    --pc-fg: #09090b;
+    --pc-fg-2: #3f3f46;
+    --pc-primary: #18181b;
+    --pc-primary-fg: #fafafa;
+    --pc-ring: rgba(0, 0, 0, 0.06);
+    --pc-radius: 6px;
+    --pc-radius-lg: 10px;
+    --pc-sidebar-w: 200px;
+    --pc-danger: #b91c1c;
+    --pc-danger-border: #fecaca;
+    --pc-danger-bg: #fef2f2;
+    --pc-info: #1d4ed8;
+    --pc-info-border: #bfdbfe;
+    --pc-info-bg: #eff6ff;
+
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, ui-sans-serif, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--pc-fg);
 }
 
-.postycal-tab-nav .nav-tab {
-    background: none;
-    border: none;
-    cursor: pointer;
+.postycal-v2 * {
+    box-sizing: border-box;
+}
+
+.postycal-v2 h1,
+.postycal-v2 h2,
+.postycal-v2 h3 {
+    font-weight: 600;
+    margin: 0;
+}
+
+.postycal-v2 input,
+.postycal-v2 select,
+.postycal-v2 textarea,
+.postycal-v2 button {
+    font-family: inherit;
     font-size: 14px;
 }
 
+/* ── Page header ── */
+.postycal-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--pc-border);
+}
+
+.postycal-page-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.postycal-page-title svg {
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0;
+    display: block;
+    color: var(--pc-fg);
+}
+
+.postycal-page-title h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--pc-fg);
+    line-height: 1;
+    padding: 0;
+}
+
+.postycal-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--pc-muted);
+    color: var(--pc-muted-fg);
+    border: 1px solid var(--pc-border);
+    line-height: 1.5;
+}
+
+/* ── Body layout ── */
+.postycal-body-layout {
+    display: flex !important;
+    gap: 24px;
+    align-items: flex-start;
+    float: none !important;
+}
+
+/* ── Sidebar ── */
+.postycal-sidebar {
+    width: var(--pc-sidebar-w);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: sticky;
+    top: 52px;
+}
+
+.postycal-sidebar-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pc-muted-fg);
+    padding: 0 10px 8px;
+}
+
+.postycal-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: none;
+    border-radius: var(--pc-radius);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--pc-fg-2);
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    line-height: 1;
+    box-shadow: none !important;
+}
+
+.postycal-nav-item:hover {
+    background: var(--pc-muted);
+    color: var(--pc-fg);
+}
+
+.postycal-nav-item.postycal-active {
+    background: var(--pc-muted);
+    color: var(--pc-fg);
+    font-weight: 600;
+}
+
+.postycal-nav-item svg {
+    width: 16px !important;
+    height: 16px !important;
+    opacity: 0.65;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.postycal-nav-item.postycal-active svg {
+    opacity: 1;
+}
+
+/* ── Content column ── */
+.postycal-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
 .postycal-tab-panel {
-    padding-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
-/* Info Box */
-.postycal-info-box {
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    border-left: 4px solid #2271b1;
+/* ── Cards ── */
+.postycal-card {
+    background: var(--pc-surface);
+    border: 1px solid var(--pc-border);
+    border-radius: var(--pc-radius-lg);
+    overflow: hidden;
+}
+
+.postycal-card-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--pc-border);
+}
+
+.postycal-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+    color: var(--pc-fg);
+    line-height: 1.3;
+}
+
+.postycal-card-desc {
+    margin: 5px 0 0;
+    font-size: 13px;
+    color: var(--pc-muted-fg);
+    line-height: 1.5;
+    font-weight: 400;
+}
+
+.postycal-card-body {
+    padding: 0;
+}
+
+/* Action bar under a card's table/list (Add New, Run All Schedules Now) */
+.postycal-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--pc-border);
+    background: var(--pc-muted);
+}
+
+/* ── Sub-section label inside a card body ── */
+.postycal-sub-section {
+    padding: 9px 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pc-muted-fg);
+    background: var(--pc-muted);
+    border-bottom: 1px solid var(--pc-border);
+    border-top: 1px solid var(--pc-border);
+}
+
+.postycal-card-body > .postycal-sub-section:first-child {
+    border-top: none;
+}
+
+/* ── Chips (read-only tags — "other available post types") ── */
+.postycal-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 20px;
+}
+
+.postycal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--pc-fg-2);
+    background: var(--pc-surface);
+    border: 1px solid var(--pc-border);
+    border-radius: 100px;
+    padding: 5px 11px;
+}
+
+.postycal-chip code {
+    font-size: 11px;
+    color: var(--pc-muted-fg);
+    font-weight: 400;
+}
+
+/* ── Guide block ("How PostyCal Works") ── */
+.postycal-guide-body {
     padding: 20px;
-    margin: 20px 0;
-    border-radius: 4px;
 }
 
-.postycal-info-box h2 {
-    margin-top: 0;
-    color: #1d2327;
+.postycal-guide-intro {
+    font-size: 13.5px;
+    color: var(--pc-fg-2);
+    line-height: 1.65;
+    margin: 0 0 16px;
 }
 
-.postycal-info-box p {
-    margin-bottom: 1em;
+.postycal-guide-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 4px;
 }
 
-.postycal-info-box ol,
-.postycal-info-box ul {
-    margin-left: 2em;
-    margin-bottom: 1em;
+.postycal-guide-item-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--pc-fg);
+    margin-bottom: 2px;
+    line-height: 1.3;
 }
 
-.postycal-info-box li {
-    margin-bottom: 0.5em;
+.postycal-guide-item-desc {
+    font-size: 13px;
+    color: var(--pc-muted-fg);
+    line-height: 1.55;
 }
 
-/* Schedules Table */
-#postycal-schedules-table {
-    margin-top: 20px;
+.postycal-guide-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--pc-info-bg);
+    border: 1px solid var(--pc-info-border);
+    border-radius: var(--pc-radius);
+    padding: 11px 14px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--pc-info);
+    margin-top: 16px;
 }
 
-#postycal-schedules-table .no-items td {
+.postycal-guide-note svg {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* ── Notices (inline modal error, etc.) ── */
+.postycal-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--pc-radius);
+    font-size: 13px;
+    line-height: 1.45;
+    border: 1px solid;
+    margin: 0 0 15px !important;
+}
+
+.postycal-modal-error.postycal-notice {
+    background: var(--pc-danger-bg);
+    border-color: var(--pc-danger-border);
+    color: var(--pc-danger);
+}
+
+.postycal-modal-error p {
+    margin: 0;
+}
+
+/* ── Empty state ── */
+.postycal-v2 .no-items td,
+.postycal-empty {
+    padding: 24px 20px !important;
+    font-size: 13px;
+    color: var(--pc-muted-fg);
+    font-style: italic;
     text-align: center;
-    padding: 20px;
-    color: #666;
 }
 
-#postycal-schedules-table td {
+/* ── Buttons ── */
+.postycal-v2 .postycal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: var(--pc-radius);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.1s, background 0.1s, border-color 0.1s, color 0.1s;
+    border: 1px solid transparent;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+.postycal-v2 .postycal-btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.postycal-v2 .postycal-btn-primary {
+    background: var(--pc-primary);
+    color: var(--pc-primary-fg);
+    border-color: var(--pc-primary);
+}
+
+.postycal-v2 .postycal-btn-primary:hover {
+    opacity: 0.85;
+    color: var(--pc-primary-fg);
+}
+
+.postycal-v2 .postycal-btn-secondary {
+    background: var(--pc-surface);
+    color: var(--pc-fg);
+    border-color: var(--pc-border);
+}
+
+.postycal-v2 .postycal-btn-secondary:hover {
+    background: var(--pc-muted);
+}
+
+.postycal-v2 .postycal-btn-danger {
+    background: var(--pc-surface);
+    color: var(--pc-muted-fg);
+    border-color: var(--pc-border);
+}
+
+.postycal-v2 .postycal-btn-danger:hover {
+    color: var(--pc-danger);
+    border-color: var(--pc-danger);
+}
+
+.postycal-v2 .postycal-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.postycal-v2 .postycal-btn:focus-visible {
+    outline: 2px solid var(--pc-primary);
+    outline-offset: 2px;
+}
+
+/* ── Form inputs ── */
+.postycal-v2 input[type="text"],
+.postycal-v2 input[type="date"],
+.postycal-v2 input[type="datetime-local"],
+.postycal-v2 input[type="number"],
+.postycal-v2 textarea {
+    height: 34px;
+    border: 1px solid var(--pc-border);
+    border-radius: var(--pc-radius);
+    padding: 0 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--pc-fg);
+    background: var(--pc-surface);
+    outline: none;
+    transition: border-color 0.1s, box-shadow 0.1s;
+    box-shadow: none;
+}
+
+.postycal-v2 textarea {
+    height: auto;
+    padding: 8px 10px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.postycal-v2 input[type="text"]:focus,
+.postycal-v2 input[type="date"]:focus,
+.postycal-v2 input[type="datetime-local"]:focus,
+.postycal-v2 input[type="number"]:focus,
+.postycal-v2 textarea:focus {
+    border-color: var(--pc-primary);
+    box-shadow: 0 0 0 2px var(--pc-ring);
+}
+
+.postycal-v2 select {
+    height: 34px;
+    border: 1px solid var(--pc-border);
+    border-radius: var(--pc-radius);
+    padding: 0 28px 0 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--pc-fg);
+    background-color: var(--pc-surface);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.1s;
+    box-shadow: none;
+}
+
+.postycal-v2 select:focus {
+    border-color: var(--pc-primary);
+    box-shadow: 0 0 0 2px var(--pc-ring);
+}
+
+.postycal-v2 select:disabled {
+    background-color: var(--pc-muted);
+    cursor: not-allowed;
+}
+
+/* Native checkboxes keep their control (no bespoke replacement graphic),
+   just tinted to the system's accent so they read as part of it. */
+.postycal-v2 input[type="checkbox"] {
+    accent-color: var(--pc-primary);
+    width: 15px;
+    height: 15px;
+}
+
+.postycal-v2 code {
+    font-size: 11.5px;
+    background: var(--pc-muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "Courier New", Consolas, monospace;
+    color: var(--pc-fg-2);
+    border: 1px solid var(--pc-border);
+}
+
+.postycal-v2 .description {
+    display: block;
+    color: var(--pc-muted-fg);
+    font-size: 12.5px;
+    font-style: normal;
+    margin-top: 5px;
+    line-height: 1.45;
+}
+
+/* ── Tables ── */
+.postycal-v2 .wp-list-table {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+}
+
+.postycal-v2 .wp-list-table thead th {
+    padding: 8px 20px;
+    background: var(--pc-muted);
+    border-bottom: 1px solid var(--pc-border);
+    border-top: none;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pc-muted-fg);
+}
+
+.postycal-v2 .wp-list-table td {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--pc-border);
+    font-size: 13px;
+    color: var(--pc-fg-2);
     vertical-align: middle;
 }
 
-#postycal-schedules-table .button {
-    margin-right: 5px;
+.postycal-v2 .wp-list-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
-/* Modal */
+.postycal-v2 .wp-list-table.striped > tbody > tr:nth-child(odd) {
+    background: transparent;
+}
+
+.postycal-v2 .wp-list-table tbody tr:hover {
+    background: var(--pc-muted);
+}
+
+.postycal-v2 .wp-list-table .postycal-btn {
+    margin-right: 4px;
+}
+
+/* ── Modal ── */
 .postycal-modal {
     position: fixed;
     top: 0;
@@ -86,7 +580,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(9, 9, 11, 0.5);
 }
 
 .postycal-modal-content {
@@ -94,10 +588,11 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: #fff;
+    background: var(--pc-surface);
     padding: 24px;
-    border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--pc-border);
+    border-radius: var(--pc-radius-lg);
+    box-shadow: 0 12px 32px rgba(9, 9, 11, 0.18);
     max-width: 600px;
     width: 90%;
     max-height: 90vh;
@@ -105,10 +600,10 @@
 }
 
 .postycal-modal-content h2 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #dcdcde;
+    margin: 0 0 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--pc-border);
+    font-size: 15px;
 }
 
 .postycal-modal-content .form-table {
@@ -117,120 +612,34 @@
 
 .postycal-modal-content .form-table th {
     width: 180px;
-    padding-top: 15px;
-    padding-bottom: 15px;
+    padding: 14px 10px 14px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--pc-fg);
 }
 
 .postycal-modal-content .form-table td {
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding: 10px 0;
 }
 
 .postycal-modal-content .form-table input[type="text"],
+.postycal-modal-content .form-table input[type="date"],
+.postycal-modal-content .form-table input[type="datetime-local"],
 .postycal-modal-content .form-table select {
     width: 100%;
-    max-width: 300px;
-}
-
-.postycal-modal-content .description {
-    color: #646970;
-    font-style: italic;
-    margin-top: 5px;
+    max-width: 320px;
+    display: block;
 }
 
 .postycal-modal-content .submit {
-    padding-top: 20px;
-    margin-top: 10px;
-    border-top: 1px solid #dcdcde;
+    padding-top: 18px;
+    margin-top: 6px;
+    border-top: 1px solid var(--pc-border);
+    display: flex;
+    gap: 8px;
 }
 
-.postycal-modal-content .submit .button {
-    margin-right: 10px;
-}
-
-/* Buttons */
-.postycal-settings .submit {
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid #dcdcde;
-}
-
-.postycal-settings .submit .button {
-    margin-right: 10px;
-}
-
-#postycal-trigger-cron {
-    margin-left: 10px;
-}
-
-/* Notices */
-.postycal-notice {
-    margin: 15px 0;
-}
-
-/* Responsive adjustments */
-@media screen and (max-width: 782px) {
-    .postycal-modal-content {
-        width: 95%;
-        padding: 15px;
-    }
-
-    .postycal-modal-content .form-table th {
-        width: auto;
-        display: block;
-        padding-bottom: 5px;
-    }
-
-    .postycal-modal-content .form-table td {
-        display: block;
-        padding-top: 0;
-    }
-
-    .postycal-modal-content .form-table input[type="text"],
-    .postycal-modal-content .form-table select {
-        max-width: 100%;
-    }
-
-    #postycal-schedules-table {
-        display: block;
-        overflow-x: auto;
-    }
-}
-
-/* Focus states for accessibility */
-.postycal-modal-content input:focus,
-.postycal-modal-content select:focus,
-.postycal-modal-content button:focus {
-    outline: 2px solid #2271b1;
-    outline-offset: 2px;
-}
-
-/* Loading state */
-.postycal-loading {
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-/* Spinner */
-.postycal-modal-content .spinner {
-    float: none;
-    margin: 0 0 0 5px;
-    vertical-align: middle;
-}
-
-/* Disabled select styling */
-.postycal-modal-content select:disabled {
-    background-color: #f0f0f1;
-    cursor: not-allowed;
-}
-
-/* Inline modal error message */
-.postycal-modal-error {
-    margin: 0 0 15px !important;
-    padding: 8px 12px !important;
-}
-
-/* Meta box — Publication Schedule */
+/* ── Meta box — Publication Schedule (post editor sidebar) ── */
 #postycal_publication_dates .postycal-date-field {
     width: 100%;
     box-sizing: border-box;
@@ -255,4 +664,68 @@
     border-bottom: 1px solid #dcdcde;
     padding-bottom: 6px;
     color: #1d2327;
+}
+
+/* Loading state */
+.postycal-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.postycal-modal-content .spinner {
+    float: none;
+    margin: 0 0 0 5px;
+    vertical-align: middle;
+}
+
+/* ── Responsive ── */
+@media screen and (max-width: 782px) {
+    .postycal-body-layout {
+        flex-direction: column;
+    }
+
+    .postycal-sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        position: static;
+    }
+
+    .postycal-sidebar-label {
+        display: none;
+    }
+
+    .postycal-modal-content {
+        width: 95%;
+        padding: 16px;
+    }
+
+    .postycal-modal-content .form-table th {
+        width: auto;
+        display: block;
+        padding-bottom: 5px;
+    }
+
+    .postycal-modal-content .form-table td {
+        display: block;
+        padding-top: 0;
+    }
+
+    .postycal-modal-content .form-table input[type="text"],
+    .postycal-modal-content .form-table select {
+        max-width: 100%;
+    }
+
+    .postycal-v2 .wp-list-table {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+/* Focus states for accessibility */
+.postycal-modal-content input:focus,
+.postycal-modal-content select:focus,
+.postycal-modal-content button:focus {
+    outline: 2px solid var(--pc-primary);
+    outline-offset: 2px;
 }

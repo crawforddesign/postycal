@@ -88,8 +88,8 @@
         // -----------------------------------------------------------------
 
         switchTab: function( tab ) {
-            $( '.postycal-tab-btn' ).removeClass( 'nav-tab-active' );
-            $( '.postycal-tab-btn[data-tab="' + tab + '"]' ).addClass( 'nav-tab-active' );
+            $( '.postycal-tab-btn' ).removeClass( 'postycal-active' );
+            $( '.postycal-tab-btn[data-tab="' + tab + '"]' ).addClass( 'postycal-active' );
             $( '.postycal-tab-panel' ).hide();
             $( '#postycal-tab-' + tab ).show();
         },

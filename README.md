@@ -1,6 +1,6 @@
 # PostyCal
 
-**Version:** 2.5.1  
+**Version:** 2.6.0  
 **Requires WordPress:** 6.0+  
 **Requires PHP:** 8.2+  
 **License:** GPL v3 or later
@@ -174,6 +174,11 @@ bin/build-release.sh
 ```
 
 ## Changelog
+
+### 2.6.0
+- **Settings page redesigned** to match the visual style of CDG Core's own settings screen: a sidebar nav in place of the old top tabs, sections in cards, and the same typography, spacing, buttons, and form controls
+- The Post Types tab now lists **other available post types** — every public post type on the site PostyCal didn't create itself (core Post/Page, a type from ACF's Post Type UI, CPT UI, or hand-coded elsewhere) — so it's obvious at a glance what's already usable on the Schedules tab without creating anything
+- The settings page now always opens on the **Schedules** tab, regardless of setup state
 
 ### 2.5.1
 - **Settings page now opens on the right tab.** The tab order was Schedules → Post Types → Taxonomies, backwards from the documented setup order — a first-time user landed on a tab with nothing to select. Tabs are now ordered Post Types → Taxonomies → Schedules, and the page opens on Post Types until at least one schedule exists, after which it opens on Schedules
