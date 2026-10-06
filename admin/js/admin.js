@@ -205,6 +205,7 @@
             $( '#postycal-name' ).val( schedule.name );
             $( '#postycal-post-type' ).val( schedule.post_type );
             $( '#postycal-use-time' ).prop( 'checked', !! schedule.use_time );
+            $( '#postycal-show-columns' ).prop( 'checked', !! schedule.show_columns );
 
             this.loadTaxonomiesForPostType( schedule.post_type, function() {
                 $( '#postycal-taxonomy' ).val( schedule.taxonomy );
@@ -358,7 +359,8 @@
                 upcoming_term: $( '#postycal-upcoming-term' ).val(),
                 active_term:   $( '#postycal-active-term' ).val(),
                 past_term:     $( '#postycal-past-term' ).val(),
-                use_time:      $( '#postycal-use-time' ).is( ':checked' ) ? '1' : ''
+                use_time:      $( '#postycal-use-time' ).is( ':checked' ) ? '1' : '',
+                show_columns:  $( '#postycal-show-columns' ).is( ':checked' ) ? '1' : ''
             } )
             .done( function( r ) {
                 if ( r.success ) {

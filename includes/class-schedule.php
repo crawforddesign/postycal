@@ -67,6 +67,13 @@ class Schedule {
     public readonly bool $use_time;
 
     /**
+     * Whether the post list swaps the Date column for Go-Live and Expiration columns.
+     *
+     * @var bool
+     */
+    public readonly bool $show_columns;
+
+    /**
      * Stable unique key used to derive post meta keys.
      *
      * Generated once on schedule creation and preserved across updates
@@ -89,6 +96,7 @@ class Schedule {
         $this->active_term   = sanitize_title( $data['active_term'] ?? '' );
         $this->past_term     = sanitize_title( $data['past_term'] ?? '' );
         $this->use_time      = (bool) ( $data['use_time'] ?? false );
+        $this->show_columns  = (bool) ( $data['show_columns'] ?? false );
         $this->schedule_key  = ! empty( $data['schedule_key'] )
             ? sanitize_key( $data['schedule_key'] )
             : $this->generate_key();
@@ -192,6 +200,7 @@ class Schedule {
             'active_term'   => $this->active_term,
             'past_term'     => $this->past_term,
             'use_time'      => $this->use_time,
+            'show_columns'  => $this->show_columns,
             'schedule_key'  => $this->schedule_key,
         ];
     }

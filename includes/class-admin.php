@@ -63,6 +63,8 @@ class Admin {
         add_action( 'admin_head', [ $this, 'maybe_hide_publish_date' ] );
         add_action( 'admin_notices', [ $this, 'display_missing_dates_notice' ] );
         add_action( 'current_screen', [ $this, 'register_view_link_for_screen' ] );
+        add_action( 'current_screen', [ $this, 'register_list_columns_for_screen' ] );
+        add_action( 'pre_get_posts', [ $this, 'sort_by_schedule_date' ] );
         add_filter( 'plugin_action_links_' . POSTYCAL_PLUGIN_BASENAME, [ $this, 'add_settings_link' ] );
 
         // Schedule AJAX.
@@ -145,6 +147,129 @@ class Admin {
         }
 
         add_filter( 'views_edit-' . $screen->post_type, [ $this, 'add_schedule_view_link' ] );
+    }
+
+    /**
+     * On a managed post type's list screen whose schedule opts in, replace the
+     * Date column with sortable Go-Live and Expiration columns.
+     *
+     * @param \WP_Screen $screen Current screen.
+     * @return void
+     */
+    public function register_list_columns_for_screen( \WP_Screen $screen ): void {
+        if ( 'edit' !== $screen->base || null === $this->get_column_schedule( $screen->post_type ) ) {
+            return;
+        }
+
+        $type = $screen->post_type;
+        add_filter( "manage_{$type}_posts_columns", [ $this, 'filter_list_columns' ] );
+        add_action( "manage_{$type}_posts_custom_column", [ $this, 'render_list_column' ], 10, 2 );
+        add_filter( "manage_edit-{$type}_sortable_columns", [ $this, 'filter_sortable_columns' ] );
+    }
+
+    /**
+     * First schedule for a post type that has list columns enabled.
+     *
+     * @param string $post_type Post type slug.
+     * @return Schedule|null
+     */
+    private function get_column_schedule( string $post_type ): ?Schedule {
+        foreach ( $this->schedule_manager->get_for_post_type( $post_type ) as $schedule ) {
+            if ( $schedule->show_columns ) {
+                return $schedule;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param string[] $columns Existing columns.
+     * @return string[]
+     */
+    public function filter_list_columns( array $columns ): array {
+        $result = [];
+
+        foreach ( $columns as $key => $label ) {
+            if ( 'date' === $key ) {
+                $result['postycal_go_live']    = __( 'Go-Live Date', 'postycal' );
+                $result['postycal_expiration'] = __( 'Expiration Date', 'postycal' );
+                continue;
+            }
+            $result[ $key ] = $label;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param string[] $columns Sortable columns.
+     * @return string[]
+     */
+    public function filter_sortable_columns( array $columns ): array {
+        $columns['postycal_go_live']    = 'postycal_go_live';
+        $columns['postycal_expiration'] = 'postycal_expiration';
+
+        return $columns;
+    }
+
+    /**
+     * @param string $column  Column key.
+     * @param int    $post_id Post ID.
+     * @return void
+     */
+    public function render_list_column( string $column, int $post_id ): void {
+        if ( 'postycal_go_live' !== $column && 'postycal_expiration' !== $column ) {
+            return;
+        }
+
+        $schedule = $this->get_column_schedule( (string) get_post_type( $post_id ) );
+        if ( null === $schedule ) {
+            return;
+        }
+
+        $date = 'postycal_go_live' === $column
+            ? Date_Handler::get_go_live_date( $post_id, $schedule )
+            : Date_Handler::get_expiration_date( $post_id, $schedule );
+
+        if ( null === $date ) {
+            echo '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__( 'Not set', 'postycal' ) . '</span>';
+            return;
+        }
+
+        $format = get_option( 'date_format' ) . ( $schedule->use_time ? ' ' . get_option( 'time_format' ) : '' );
+        echo esc_html( wp_date( $format, $date->getTimestamp(), $date->getTimezone() ) );
+    }
+
+    /**
+     * Order the post list by a PostyCal date column, keeping posts with no date.
+     *
+     * @param \WP_Query $query Query being run.
+     * @return void
+     */
+    public function sort_by_schedule_date( \WP_Query $query ): void {
+        if ( ! is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        $orderby = $query->get( 'orderby' );
+        if ( 'postycal_go_live' !== $orderby && 'postycal_expiration' !== $orderby ) {
+            return;
+        }
+
+        $schedule = $this->get_column_schedule( (string) $query->get( 'post_type' ) );
+        if ( null === $schedule ) {
+            return;
+        }
+
+        $key = 'postycal_go_live' === $orderby ? $schedule->get_go_live_meta_key() : $schedule->get_expiration_meta_key();
+
+        $query->set( 'meta_query', [
+            'relation'        => 'OR',
+            'postycal_sort'   => [ 'key' => $key, 'compare' => 'EXISTS' ],
+            'postycal_unset'  => [ 'key' => $key, 'compare' => 'NOT EXISTS' ],
+        ] );
+        $query->set( 'orderby', 'postycal_sort' );
     }
 
     /**
@@ -621,6 +746,12 @@ class Admin {
                             <th><?php esc_html_e( 'Time-Aware', 'postycal' ); ?></th>
                             <td>
                                 <label><input type="checkbox" id="postycal-use-time" name="use_time" value="1"> <?php esc_html_e( 'Use exact time for transitions (requires datetime-local fields)', 'postycal' ); ?></label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Post List Columns', 'postycal' ); ?></th>
+                            <td>
+                                <label><input type="checkbox" id="postycal-show-columns" name="show_columns" value="1"> <?php esc_html_e( 'Show Go-Live Date and Expiration Date columns on the post list, and hide the Date column', 'postycal' ); ?></label>
                             </td>
                         </tr>
                     </table>
@@ -1378,6 +1509,7 @@ class Admin {
             'active_term'   => sanitize_title( wp_unslash( $post['active_term'] ?? '' ) ),
             'past_term'     => sanitize_title( wp_unslash( $post['past_term'] ?? '' ) ),
             'use_time'      => ! empty( $post['use_time'] ),
+            'show_columns'  => ! empty( $post['show_columns'] ),
         ];
     }
 
