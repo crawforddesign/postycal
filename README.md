@@ -1,6 +1,6 @@
 # PostyCal
 
-**Version:** 2.6.0  
+**Version:** 2.7.0  
 **Requires WordPress:** 6.0+  
 **Requires PHP:** 8.2+  
 **License:** GPL v3 or later
@@ -174,6 +174,9 @@ bin/build-release.sh
 ```
 
 ## Changelog
+
+### 2.7.0
+- **Go-Live Date and Expiration Date columns on the post list.** A new **Post List Columns** checkbox on each schedule replaces the Date column with sortable Go-Live and Expiration columns for that post type. Off by default, so existing schedules are unchanged
 
 ### 2.6.0
 - **Settings page redesigned** to match the visual style of CDG Core's own settings screen: a sidebar nav in place of the old top tabs, sections in cards, and the same typography, spacing, buttons, and form controls
